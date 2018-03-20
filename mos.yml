@@ -1,0 +1,24 @@
+author: mongoose-os
+description: Implements PN532
+type: lib
+version: 1.0
+
+sources:
+  - src
+includes:
+  - include
+
+config_schema:
+
+libs:
+  - origin: https://github.com/mongoose-os-libs/arduino-compat
+  - origin: https://github.com/mongoose-os-libs/arduino-wire
+  - origin: https://github.com/mongoose-os-libs/arduino-spi
+  
+tags:
+  - c
+  - c++
+
+build_vars:
+
+manifest_version: 2017-09-29
