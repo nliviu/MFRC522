@@ -1327,21 +1327,27 @@ void MFRC522::PCD_DumpVersionToSerial()
 {
     // Get the MFRC522 firmware version
     uint8_t v = PCD_ReadRegister(VersionReg);
-    char buf[64];
+    // When 0x00 or 0xFF is returned, communication probably failed
+    if ((v == 0x00) || (v == 0xFF)) {
+        //Serial.println(F("WARNING: Communication failure, is the MFRC522 properly connected?"));
+        LOG(LL_INFO, ("WARNING: Communication failure, is the MFRC522 properly connected?"));
+        return;
+    }
+    char buf[128];
     //Serial.print(F("Firmware Version: 0x"));
     //Serial.print(v, HEX);
-    int len = snprintf(buf, sizeof (buf), "Firmware Version: %02X", v);
+    int len = snprintf(buf, sizeof (buf), "Firmware Version: %02X", (0xFF & v));
     // Lookup which version
     switch (v) {
         case 0x88:
             //Serial.println(F(" = (clone)"));
-            len = snprintf(buf, sizeof (buf) - len, " = (clone)\n");
+            len += snprintf(buf + len, sizeof (buf) - len, " = (clone)");
             break;
         case 0x90:
         case 0x91:
         case 0x92:
             //Serial.println(F(" = v0.0"));
-            len = snprintf(buf, sizeof (buf) - len, " = v%d.0\n", (int) (v - 0x90));
+            len += snprintf(buf + len, sizeof (buf) - len, " = v%d.0", (int) (v - 0x90));
             break;
             //case 0x91:
             //    Serial.println(F(" = v1.0"));
@@ -1351,13 +1357,14 @@ void MFRC522::PCD_DumpVersionToSerial()
             //    break;
         default:
             //Serial.println(F(" = (unknown)"));
-            len = snprintf(buf, sizeof (buf) - len, " = (unknown)\n");
+            len += snprintf(buf + len, sizeof (buf) - len, " = (unknown)");
     }
     // When 0x00 or 0xFF is returned, communication probably failed
-    if ((v == 0x00) || (v == 0xFF)) {
-        //Serial.println(F("WARNING: Communication failure, is the MFRC522 properly connected?"));
-        len = snprintf(buf, sizeof (buf) - len, "WARNING: Communication failure, is the MFRC522 properly connected?\n");
-    }
+    // moved ^^^
+    //if ((v == 0x00) || (v == 0xFF)) {
+    //Serial.println(F("WARNING: Communication failure, is the MFRC522 properly connected?"));
+    //    len += snprintf(buf + len, sizeof (buf) - len, "WARNING: Communication failure, is the MFRC522 properly connected?");
+    //}
     LOG(LL_INFO, ("%s", buf));
 } // End PCD_DumpVersionToSerial()
 
@@ -1429,14 +1436,14 @@ void MFRC522::PICC_DumpDetailsToSerial(Uid *uid /*< Pointer to Uid struct return
         //    Serial.print(F(" "));
         //}
         //Serial.print(uid->uidByte[i], HEX);
-        len = snprintf(buf, sizeof (buf) - len, "%02X", (0xFF & uid->uidByte[i]));
+        len += snprintf(buf + len, sizeof (buf) - len, "%02X", (0xFF & uid->uidByte[i]));
     }
     //Serial.println();
     LOG(LL_INFO, ("%s", buf));
 
     // SAK
     //Serial.print(F("Card SAK: "));
-    len = snprintf(buf, sizeof (buf), "Card SAK:");
+    len += snprintf(buf, sizeof (buf), "Card SAK:");
 
     //if (uid->sak < 0x10) {
     //    Serial.print(F("0"));
@@ -1448,7 +1455,7 @@ void MFRC522::PICC_DumpDetailsToSerial(Uid *uid /*< Pointer to Uid struct return
     PICC_Type piccType = PICC_GetType(uid->sak);
     //Serial.print(F("PICC type: "));
     //Serial.println(PICC_GetTypeName(piccType));
-    LOG(LL_INFO, ("PICC type: %s", PICC_GetTypeName(piccType)));
+    LOG(LL_INFO, ("PICC type: %s", (const char*) PICC_GetTypeName(piccType)));
 } // End PICC_DumpDetailsToSerial()
 
 /**
@@ -1483,7 +1490,8 @@ void MFRC522::PICC_DumpMifareClassicToSerial(Uid *uid, ///< Pointer to Uid struc
 
     // Dump sectors, highest address first.
     if (no_of_sectors) {
-        Serial.println(F("Sector Block   0  1  2  3   4  5  6  7   8  9 10 11  12 13 14 15  AccessBits"));
+        //Serial.println(F("Sector Block   0  1  2  3   4  5  6  7   8  9 10 11  12 13 14 15  AccessBits"));
+        LOG(LL_INFO, ("Sector Block   0  1  2  3   4  5  6  7   8  9 10 11  12 13 14 15  AccessBits"));
         for (int8_t i = no_of_sectors - 1; i >= 0; i--) {
 
             PICC_DumpMifareClassicSectorToSerial(uid, key, i);
@@ -1533,6 +1541,8 @@ void MFRC522::PICC_DumpMifareClassicSectorToSerial(Uid *uid, ///< Pointer to Uid
     } else { // Illegal input, no MIFARE Classic PICC has more than 40 sectors.
         return;
     }
+    char buf[128];
+    int len = 0;
 
     // Dump blocks, highest address first.
     uint8_t byteCount;
@@ -1544,32 +1554,39 @@ void MFRC522::PICC_DumpMifareClassicSectorToSerial(Uid *uid, ///< Pointer to Uid
         blockAddr = firstBlock + blockOffset;
         // Sector number - only on first line
         if (isSectorTrailer) {
-            if (sector < 10)
-                Serial.print(F("   ")); // Pad with spaces
-            else
-                Serial.print(F("  ")); // Pad with spaces
-            Serial.print(sector);
-            Serial.print(F("   "));
+            //if (sector < 10) {
+            //    Serial.print(F("   ")); // Pad with spaces
+            //} else {
+            //    Serial.print(F("  ")); // Pad with spaces
+            //}
+            //Serial.print(sector);
+            //Serial.print(F("   "));
+            len += snprintf(buf, sizeof (buf), "  %02hhu   ", sector);
         } else {
-            Serial.print(F("       "));
+            //Serial.print(F("       "));
+            len += snprintf(buf, sizeof (buf), "%s", "       ");
         }
         // Block number
-        if (blockAddr < 10)
-            Serial.print(F("   ")); // Pad with spaces
-        else {
-            if (blockAddr < 100)
-                Serial.print(F("  ")); // Pad with spaces
-            else
-                Serial.print(F(" ")); // Pad with spaces
-        }
-        Serial.print(blockAddr);
-        Serial.print(F("  "));
+        //if (blockAddr < 10) {
+        //Serial.print(F("   ")); // Pad with spaces
+        //} else {
+        //if (blockAddr < 100) {
+        //    Serial.print(F("  ")); // Pad with spaces
+        //} else {
+        //    Serial.print(F(" ")); // Pad with spaces
+        //}
+        //}
+        //Serial.print(blockAddr);
+        //Serial.print(F("  "));
+        len += snprintf(buf + len, sizeof (buf) - len, " %3hhu  ", blockAddr);
         // Establish encrypted communications before reading the first block
         if (isSectorTrailer) {
             status = PCD_Authenticate(PICC_CMD_MF_AUTH_KEY_A, firstBlock, key, uid);
             if (status != STATUS_OK) {
-                Serial.print(F("PCD_Authenticate() failed: "));
-                Serial.println(GetStatusCodeName(status));
+                //Serial.print(F("PCD_Authenticate() failed: "));
+                //Serial.println(GetStatusCodeName(status));
+                len += snprintf(buf + len, sizeof (buf) - len, "PCD_Authenticate() failed: %s", (const char*) GetStatusCodeName(status));
+                LOG(LL_INFO, ("%s", buf));
                 return;
             }
         }
@@ -1577,19 +1594,24 @@ void MFRC522::PICC_DumpMifareClassicSectorToSerial(Uid *uid, ///< Pointer to Uid
         byteCount = sizeof (buffer);
         status = MIFARE_Read(blockAddr, buffer, &byteCount);
         if (status != STATUS_OK) {
-            Serial.print(F("MIFARE_Read() failed: "));
-            Serial.println(GetStatusCodeName(status));
+            //Serial.print(F("MIFARE_Read() failed: "));
+            //Serial.println(GetStatusCodeName(status));
+            len += snprintf(buf + len, sizeof (buf) - len, "MIFARE_Read() failed: %s", (const char*) GetStatusCodeName(status));
+            LOG(LL_INFO, ("%s", buf));
             continue;
         }
         // Dump data
         for (uint8_t index = 0; index < 16; index++) {
-            if (buffer[index] < 0x10)
-                Serial.print(F(" 0"));
-            else
-                Serial.print(F(" "));
-            Serial.print(buffer[index], HEX);
+            //if (buffer[index] < 0x10) {
+            //    Serial.print(F(" 0"));
+            //} else {
+            //    Serial.print(F(" "));
+            //}
+            //Serial.print(buffer[index], HEX);
+            len += snprintf(buf + len, sizeof (buf) - len, " %02X", (0xFF & buffer[index]));
             if ((index % 4) == 3) {
-                Serial.print(F(" "));
+                //Serial.print(F(" "));
+                len += snprintf(buf + len, sizeof (buf) - len, "%s", " ");
             }
         }
         // Parse sector trailer data
@@ -1619,27 +1641,31 @@ void MFRC522::PICC_DumpMifareClassicSectorToSerial(Uid *uid, ///< Pointer to Uid
 
         if (firstInGroup) {
             // Print access bits
-            Serial.print(F(" [ "));
-            Serial.print((g[group] >> 2) & 1, DEC);
-            Serial.print(F(" "));
-            Serial.print((g[group] >> 1) & 1, DEC);
-            Serial.print(F(" "));
-            Serial.print((g[group] >> 0) & 1, DEC);
-            Serial.print(F(" ] "));
+            //Serial.print(F(" [ "));
+            //Serial.print((g[group] >> 2) & 1, DEC);
+            //Serial.print(F(" "));
+            //Serial.print((g[group] >> 1) & 1, DEC);
+            //Serial.print(F(" "));
+            //Serial.print((g[group] >> 0) & 1, DEC);
+            //Serial.print(F(" ] "));
+            len += snprintf(buf + len, sizeof (buf) - len, " [ %hhu %hhu %hhu ] ",
+                ((g[group] >> 2) & 1), ((g[group] >> 1) & 1), ((g[group] >> 0) & 1));
             if (invertedError) {
-                Serial.print(F(" Inverted access bits did not match! "));
+                //Serial.print(F(" Inverted access bits did not match! "));
+                len += snprintf(buf + len, sizeof (buf) - len, "%s", " Inverted access bits did not match! ");
             }
         }
 
         if (group != 3 && (g[group] == 1 || g[group] == 6)) { // Not a sector trailer, a value block
-
             int32_t value = (int32_t(buffer[3]) << 24) | (int32_t(buffer[2]) << 16) | (int32_t(buffer[1]) << 8) | int32_t(buffer[0]);
-            Serial.print(F(" Value=0x"));
-            Serial.print(value, HEX);
-            Serial.print(F(" Adr=0x"));
-            Serial.print(buffer[12], HEX);
+            //Serial.print(F(" Value=0x"));
+            //Serial.print(value, HEX);
+            //Serial.print(F(" Adr=0x"));
+            //Serial.print(buffer[12], HEX);
+            len += snprintf(buf + len, sizeof (buf) - len, " Value=%02X  Adr=%02X", (0xFF & value), (0xFF & buffer[12]));
         }
-        Serial.println();
+        //Serial.println();
+        LOG(LL_INFO, ("%s", buf));
     }
 
     return;
@@ -1665,7 +1691,7 @@ void MFRC522::PICC_DumpMifareUltralightToSerial()
         if (status != STATUS_OK) {
             //Serial.print(F("MIFARE_Read() failed: "));
             //Serial.println(GetStatusCodeName(status));
-            LOG(LL_INFO, ("MIFARE_Read() failed: %s", GetStatusCodeName(status)));
+            LOG(LL_INFO, ("MIFARE_Read() failed: %s", (const char*) GetStatusCodeName(status)));
             break;
         }
         // Dump data
@@ -1675,14 +1701,14 @@ void MFRC522::PICC_DumpMifareUltralightToSerial()
             i = page + offset;
             if (i < 10) {
                 //Serial.print(F("  ")); // Pad with spaces
-                len = snprintf(buf, sizeof (buf) - len, "  ");
+                len += snprintf(buf + len, sizeof (buf) - len, "  ");
             } else {
                 //Serial.print(F(" ")); // Pad with spaces
-                len = snprintf(buf, sizeof (buf) - len, " ");
+                len += snprintf(buf + len, sizeof (buf) - len, " ");
             }
             //Serial.print(i);
             //Serial.print(F("  "));
-            len = snprintf(buf, sizeof (buf) - len, "%d  ", i);
+            len += snprintf(buf + len, sizeof (buf) - len, "%d  ", i);
             for (uint8_t index = 0; index < 4; index++) {
                 i = 4 * offset + index;
                 //if (buffer[i] < 0x10) {
@@ -1691,10 +1717,10 @@ void MFRC522::PICC_DumpMifareUltralightToSerial()
                 //    Serial.print(F(" "));
                 //}
                 //Serial.print(buffer[i], HEX);
-                len = snprintf(buf, sizeof (buf) - len, "%02X", (0xFF & buffer[i]));
+                len += snprintf(buf + len, sizeof (buf) - len, "%02X", (0xFF & buffer[i]));
             }
             //Serial.println();
-            LOG(LL_INFO, ("%s", buf))
+            LOG(LL_INFO, ("%s", buf));
         }
     }
 } // End PICC_DumpMifareUltralightToSerial()
